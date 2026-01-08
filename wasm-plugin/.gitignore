@@ -1,0 +1,3 @@
+*.aot
+*_aot.h
+*.wasm
