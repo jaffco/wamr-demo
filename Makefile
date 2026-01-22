@@ -4,9 +4,9 @@ TARGET = main
 # Sources
 CPP_SOURCES = src/main.cpp
 
-# WASM Plugin - Build before main compilation
-WASM_PLUGIN_DIR = wasm-plugin
-WASM_PLUGIN_HEADER = $(WASM_PLUGIN_DIR)/oscillator_aot.h
+# WASM Module - Build before main compilation
+WASM_MODULE_DIR = wasm-module
+WASM_MODULE_HEADER = $(WASM_MODULE_DIR)/module_aot.h
 
 # Include WAMR runtime build first (before common.mk processes C_SOURCES)
 include wamr.mk
@@ -14,15 +14,14 @@ include wamr.mk
 # Library Locations
 include common.mk
 
-# Ensure plugin is built before compilation
-.PHONY: build-plugin
-build-plugin:
-	@echo "Building WASM plugin..."
-	@cd $(WASM_PLUGIN_DIR) && bash build.sh
+# Ensure module is built before compilation
+.PHONY: build-module
+build-module:
+	@echo "Building WASM module..."
+	@cd $(WASM_MODULE_DIR) && bash build.sh
 
-$(WASM_PLUGIN_HEADER): build-plugin
-	@touch $(WASM_PLUGIN_HEADER)
-
-# Force plugin build before main target
-all: build-plugin build/$(TARGET).bin
+$(WASM_MODULE_HEADER): build-module
+	@touch $(WASM_MODULE_HEADER)
+# Force module build before main target
+all: build-module build/$(TARGET).bin
 

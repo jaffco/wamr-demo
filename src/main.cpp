@@ -7,7 +7,7 @@ extern "C" {
 }
 
 // Embedded AOT Module
-#include "../wasm-plugin/oscillator_aot.h"
+#include "../wasm-module/module_aot.h"
 
 using namespace daisy;
 using namespace Jaffx;
@@ -112,9 +112,9 @@ bool InitWAMR() {
     
     // Load embedded AOT module
     hardware.PrintLine("Loading embedded AOT module...");
-    hardware.PrintLine("AOT size: %u bytes", oscillator_aot_len);
+    hardware.PrintLine("AOT size: %u bytes", module_aot_len);
     
-    wasm_module = wasm_runtime_load(oscillator_aot, oscillator_aot_len,
+    wasm_module = wasm_runtime_load(module_aot, module_aot_len,
                                      error_buf, sizeof(error_buf));
     if (!wasm_module) {
         hardware.PrintLine("ERROR: Failed to load AOT module: %s", error_buf);
@@ -175,14 +175,14 @@ float CallProcess(float input) {
     // Convert float input to bit pattern in argv
     memcpy(&argv[0], &input, sizeof(float));
     
-    hardware.PrintLine("  [DEBUG] Calling WASM with input=" FLT_FMT3, FLT_VAR3(input));
+    // hardware.PrintLine("  [DEBUG] Calling WASM with input=" FLT_FMT3, FLT_VAR3(input));
     
     if (!wasm_runtime_call_wasm(exec_env, func_process, 1, argv)) {
         hardware.PrintLine("ERROR: Failed to call process function");
         return 0.0f;
     }
     
-    hardware.PrintLine("  [DEBUG] WASM call returned");
+    // hardware.PrintLine("  [DEBUG] WASM call returned");
     
     // Return value is in argv[0] as bit pattern
     float result;
@@ -196,7 +196,7 @@ int main() {
 
     System::Delay(200);
     hardware.PrintLine("===========================================");
-    hardware.PrintLine("    WAMR AOT Demo - Oscillator Plugin     ");
+    hardware.PrintLine("    WAMR AOT Demo - Module     ");
     hardware.PrintLine("===========================================");
     hardware.PrintLine("");
     

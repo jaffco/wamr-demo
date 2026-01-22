@@ -1,6 +1,6 @@
-# WASM Plugin Build Instructions
+# WASM Module Build Instructions
 
-This directory contains the oscillator plugin that will be compiled to WASM and then to AOT for the Daisy Seed.
+This directory contains the module that will be compiled to WASM and then to AOT for the Daisy Seed.
 
 ## Prerequisites
 
@@ -17,9 +17,9 @@ This directory contains the oscillator plugin that will be compiled to WASM and 
 ```
 
 This will:
-1. Compile `oscillator.c` to `oscillator.wasm`
-2. Compile `oscillator.wasm` to `oscillator.aot` (native ARM code for Cortex-M7)
-3. Generate `oscillator_aot.h` with embedded binary data
+1. Compile `module.cpp` to `module.wasm`
+2. Compile `module.wasm` to `module.aot` (native ARM code for Cortex-M7)
+3. Generate `module_aot.h` with embedded binary data
 
 ## Manual Build Steps
 
@@ -34,8 +34,8 @@ $WASI_SDK/bin/clang \
     -Wl,--no-entry \
     -Wl,--export-all \
     -Wl,--allow-undefined \
-    -o oscillator.wasm \
-    oscillator.c
+    -o module.wasm \
+    module.cpp
 
 # Step 2: WASM to AOT
 ../wasm-micro-runtime/wamr-compiler/build/wamrc \
@@ -43,9 +43,9 @@ $WASI_SDK/bin/clang \
     --cpu=cortex-m7 \
     --size-level=3 \
     --enable-builtin-intrinsics=i64.common,fp.common \
-    -o oscillator.aot \
-    oscillator.wasm
+    -o module.aot \
+    module.wasm
 
 # Step 3: Embed in header
-xxd -i oscillator.aot > oscillator_aot.h
+xxd -i module.aot > module_aot.h
 ```

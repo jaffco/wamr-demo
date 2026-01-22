@@ -14,15 +14,15 @@ First, install WASI SDK (needed to compile C to WASM):
 
 This will download and install WASI SDK to `/opt/wasi-sdk`.
 
-### 2. Build WASM Plugin
+### 2. Build WASM Module
 
 ```bash
-cd wasm-plugin
+cd wasm-module
 ./build.sh
 cd ..
 ```
 
-This compiles the oscillator plugin:
+This compiles the module:
 - C source → WASM bytecode
 - WASM → AOT (native ARM code for Cortex-M7)
 - AOT → Embedded C header
@@ -43,12 +43,12 @@ make
 wamr-demo/
 ├── src/
 │   └── main.cpp              # Main application with WAMR integration
-├── wasm-plugin/
-│   ├── oscillator.c          # Plugin source code
-│   ├── oscillator.wasm       # Compiled WASM bytecode
-│   ├── oscillator.aot        # AOT-compiled ARM code
-│   ├── oscillator_aot.h      # Embedded binary (auto-generated)
-│   └── build.sh              # Plugin build script
+├── wasm-module/
+│   ├── module.cpp            # Module source code
+│   ├── module.wasm           # Compiled WASM bytecode
+│   ├── module.aot            # AOT-compiled ARM code
+│   ├── module_aot.h          # Embedded binary (auto-generated)
+│   └── build.sh              # Module build script
 ├── wasm-micro-runtime/       # WAMR submodule
 ├── wamr.mk                   # WAMR build configuration
 └── Makefile                  # Main build system
@@ -57,7 +57,7 @@ wamr-demo/
 ## What It Does
 
 1. Initializes WAMR runtime (AOT-only mode, ~29KB footprint)
-2. Loads embedded oscillator AOT module
+2. Loads embedded module AOT
 3. Calls WASM functions to generate sine wave samples
 4. Runs performance benchmarks (48,000 iterations)
 5. Analyzes real-time capability for audio processing
@@ -80,12 +80,12 @@ This build uses:
 - **Built-in libc** (minimal, no WASI)
 - **Cortex-M7 optimization** with FPU intrinsics
 
-## Modifying the Plugin
+## Modifying the Module
 
-Edit `wasm-plugin/oscillator.c` and rebuild:
+Edit `wasm-module/module.cpp` and rebuild:
 
 ```bash
-cd wasm-plugin
+cd wasm-module
 ./build.sh
 cd ..
 make clean && make
@@ -107,7 +107,7 @@ The AOT module will be regenerated and embedded automatically.
 - Or set `WASI_SDK` environment variable
 
 **"wamrc not found"**
-- First plugin build will compile it automatically
+- First module build will compile it automatically
 - Takes 5-10 minutes on first run
 
 **Build errors**
@@ -118,24 +118,6 @@ The AOT module will be regenerated and embedded automatically.
 
 Try these modifications:
 1. Add more audio effects (delay, filter, distortion)
-2. Load multiple plugins simultaneously
-3. Store plugins in QSPI flash for dynamic loading
+2. Load multiple modules simultaneously
+3. Store modules in QSPI flash for dynamic loading
 4. Add parameter controls from Daisy hardware
-
----
-
-## Original README
-
-# daisy-kickstart
-
-Quickly get up && running with Daisy 
-
-## Getting Started
-
-1. First, [install the Daisy Toolchain](https://daisy.audio/tutorials/cpp-dev-env/#1-install-the-toolchain). 
-2. Once installed, run the `init.sh` script to configure your local copy of this repository. 
-3. This repository is configured for building SRAM apps. Connect your Daisy Seed via USB and [install a bootloader](https://flash.daisy.audio/) before proceeding.
-4. With your device in program mode, use `run.sh` (or `SHIFT+CMD+B` in VSCode) to build programs and flash them to your Daisy.
-
-> [!NOTE]
-> When developing for the Daisy, it is often useful to use serial monitoring for testing and debugging. Many examples in `examples/` demonstrate this. If developing in VSCode, we recommend installing Microsoft's [serial monitor extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-serial-monitor), which will add easy access to serial monitoring via the terminal panel.

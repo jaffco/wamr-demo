@@ -3,7 +3,7 @@ set -e
 
 WAMR_ROOT=../wasm-micro-runtime
 
-echo "Building oscillator plugin..."
+echo "Building WASM module..."
 
 # Check for emcc
 if ! command -v emcc &> /dev/null; then
@@ -22,10 +22,10 @@ emcc \
     -s EXPORTED_FUNCTIONS='["_process"]' \
     -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
     -Wl,--no-entry \
-    -o oscillator.wasm \
-    oscillator.cpp
+    -o module.wasm \
+    module.cpp
 
-echo "WASM module size: $(wc -c < oscillator.wasm) bytes"
+echo "WASM module size: $(wc -c < module.wasm) bytes"
 
 # Check for wamrc
 if [ ! -f "$WAMR_ROOT/wamr-compiler/build/wamrc" ]; then
@@ -54,21 +54,21 @@ $WAMR_ROOT/wamr-compiler/build/wamrc \
     --cpu=cortex-m7 \
     --size-level=3 \
     --enable-builtin-intrinsics=i64.common,fp.common \
-    -o oscillator.aot \
-    oscillator.wasm
+    -o module.aot \
+    module.wasm
 
-echo "AOT module size: $(wc -c < oscillator.aot) bytes"
+echo "AOT module size: $(wc -c < module.aot) bytes"
 
 # Convert to C header using xxd
 echo "Step 3: Embedding AOT in C header..."
-xxd -i oscillator.aot > oscillator_aot.h
+xxd -i module.aot > module_aot.h
 
 echo ""
 echo "================================"
 echo "Plugin build complete!"
 echo "================================"
 echo "Generated files:"
-echo "  - oscillator.wasm ($(wc -c < oscillator.wasm) bytes)"
-echo "  - oscillator.aot ($(wc -c < oscillator.aot) bytes)"
-echo "  - oscillator_aot.h (embedded)"
+echo "  - module.wasm ($(wc -c < module.wasm) bytes)"
+echo "  - module.aot ($(wc -c < module.aot) bytes)"
+echo "  - module_aot.h (embedded)"
 echo ""
