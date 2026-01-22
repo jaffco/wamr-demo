@@ -15,6 +15,9 @@ using namespace Jaffx;
 // Global SDRAM allocator instance
 static SDRAM sdram;
 
+// Macro for halting on errors
+#define ERROR_HALT while (true) {}
+
 // C wrapper functions for WAMR platform to use SDRAM
 extern "C" {
     void* sdram_alloc(size_t size) {
@@ -92,7 +95,7 @@ bool InitWAMR() {
     global_heap_buf = (char *)sdram.malloc(WAMR_HEAP_SIZE);
     if (!global_heap_buf) {
         hardware.PrintLine("ERROR: Failed to allocate WAMR heap from SDRAM");
-        return false;
+        ERROR_HALT
     }
     hardware.PrintLine("Allocated %u KB from SDRAM for WAMR", WAMR_HEAP_SIZE / 1024);
     
@@ -104,7 +107,7 @@ bool InitWAMR() {
     
     if (!wasm_runtime_full_init(&init_args)) {
         hardware.PrintLine("ERROR: Failed to initialize WAMR runtime");
-        return false;
+        ERROR_HALT
     }
     
     hardware.PrintLine("WAMR runtime initialized (AOT-only mode)");
@@ -119,7 +122,7 @@ bool InitWAMR() {
     if (!wasm_module) {
         hardware.PrintLine("ERROR: Failed to load AOT module: %s", error_buf);
         wasm_runtime_destroy();
-        return false;
+        ERROR_HALT
     }
     
     hardware.PrintLine("AOT module loaded successfully");
@@ -137,7 +140,7 @@ bool InitWAMR() {
         hardware.PrintLine("ERROR: Failed to instantiate module: %s", error_buf);
         wasm_runtime_unload(wasm_module);
         wasm_runtime_destroy();
-        return false;
+        ERROR_HALT
     }
     
     hardware.PrintLine("Module instantiated (stack: %uKB, heap: %uKB)", 
@@ -150,7 +153,7 @@ bool InitWAMR() {
         wasm_runtime_deinstantiate(wasm_module_inst);
         wasm_runtime_unload(wasm_module);
         wasm_runtime_destroy();
-        return false;
+        ERROR_HALT
     }
     
     hardware.PrintLine("Looking up exported function 'process'");
@@ -158,7 +161,7 @@ bool InitWAMR() {
     
     if (!func_process) {
         hardware.PrintLine("ERROR: Could not find process function");
-        return false;
+        ERROR_HALT
     }
     
     hardware.PrintLine("Function resolved: process(float) -> float");
@@ -179,7 +182,7 @@ float CallProcess(float input) {
     
     if (!wasm_runtime_call_wasm(exec_env, func_process, 1, argv)) {
         hardware.PrintLine("ERROR: Failed to call process function");
-        return 0.0f;
+        ERROR_HALT
     }
     
     // hardware.PrintLine("  [DEBUG] WASM call returned");
@@ -209,12 +212,7 @@ int main() {
     // Initialize WAMR and load AOT module
     if (!InitWAMR()) {
         hardware.PrintLine("FATAL: WAMR initialization failed");
-        while(1) {
-            hardware.SetLed(true);
-            System::Delay(100);
-            hardware.SetLed(false);
-            System::Delay(100);
-        }
+        ERROR_HALT
     }
     
     hardware.PrintLine("=== Testing Process Function ===");
