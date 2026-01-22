@@ -13,7 +13,7 @@ This directory contains the module that will be compiled to WASM and then to AOT
 ## Building
 
 ```bash
-./build.sh
+./build-wasm.sh
 ```
 
 This will:

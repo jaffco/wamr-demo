@@ -18,7 +18,7 @@ This will download and install WASI SDK to `/opt/wasi-sdk`.
 
 ```bash
 cd wasm-module
-./build.sh
+./build-wasm.sh
 cd ..
 ```
 
@@ -49,7 +49,7 @@ wamr-demo/
 │   │   ├── module.aot        # AOT-compiled ARM code
 │   │   └── module_aot.h      # Embedded binary (auto-generated)
 │   ├── module.cpp            # Module source code
-│   └── build.sh              # Module build script
+│   └── build-wasm.sh              # Module build script
 ├── wasm-micro-runtime/       # WAMR submodule
 ├── wamr.mk                   # WAMR build configuration
 └── Makefile                  # Main build system
@@ -87,7 +87,7 @@ Edit `wasm-module/module.cpp` and rebuild:
 
 ```bash
 cd wasm-module
-./build.sh
+./build-wasm.sh
 cd ..
 make clean && make
 ```

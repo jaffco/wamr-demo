@@ -18,7 +18,7 @@ include common.mk
 .PHONY: build-module
 build-module:
 	@echo "Building WASM module..."
-	@cd $(WASM_MODULE_DIR) && bash build.sh
+	@cd $(WASM_MODULE_DIR) && bash build-wasm.sh
 
 $(WASM_MODULE_HEADER): build-module
 	@touch $(WASM_MODULE_HEADER)
