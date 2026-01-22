@@ -17,9 +17,9 @@ This directory contains the module that will be compiled to WASM and then to AOT
 ```
 
 This will:
-1. Compile `module.cpp` to `module.wasm`
-2. Compile `module.wasm` to `module.aot` (native ARM code for Cortex-M7)
-3. Generate `module_aot.h` with embedded binary data
+1. Compile `module.cpp` to `build/module.wasm`
+2. Compile `build/module.wasm` to `build/module.aot` (native ARM code for Cortex-M7)
+3. Generate `build/module_aot.h` with embedded binary data
 
 ## Manual Build Steps
 
@@ -34,7 +34,7 @@ $WASI_SDK/bin/clang \
     -Wl,--no-entry \
     -Wl,--export-all \
     -Wl,--allow-undefined \
-    -o module.wasm \
+    -o build/module.wasm \
     module.cpp
 
 # Step 2: WASM to AOT
@@ -43,9 +43,9 @@ $WASI_SDK/bin/clang \
     --cpu=cortex-m7 \
     --size-level=3 \
     --enable-builtin-intrinsics=i64.common,fp.common \
-    -o module.aot \
-    module.wasm
+    -o build/module.aot \
+    build/module.wasm
 
 # Step 3: Embed in header
-xxd -i module.aot > module_aot.h
+xxd -i build/module.aot > build/module_aot.h
 ```

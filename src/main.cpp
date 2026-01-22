@@ -7,7 +7,7 @@ extern "C" {
 }
 
 // Embedded AOT Module
-#include "../wasm-module/module_aot.h"
+#include "../wasm-module/build/module_aot.h"
 
 using namespace daisy;
 using namespace Jaffx;

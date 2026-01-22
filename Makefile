@@ -6,7 +6,7 @@ CPP_SOURCES = src/main.cpp
 
 # WASM Module - Build before main compilation
 WASM_MODULE_DIR = wasm-module
-WASM_MODULE_HEADER = $(WASM_MODULE_DIR)/module_aot.h
+WASM_MODULE_HEADER = $(WASM_MODULE_DIR)/build/module_aot.h
 
 # Include WAMR runtime build first (before common.mk processes C_SOURCES)
 include wamr.mk

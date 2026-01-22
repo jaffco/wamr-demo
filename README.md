@@ -44,10 +44,11 @@ wamr-demo/
 ├── src/
 │   └── main.cpp              # Main application with WAMR integration
 ├── wasm-module/
+│   ├── build/
+│   │   ├── module.wasm       # Compiled WASM bytecode
+│   │   ├── module.aot        # AOT-compiled ARM code
+│   │   └── module_aot.h      # Embedded binary (auto-generated)
 │   ├── module.cpp            # Module source code
-│   ├── module.wasm           # Compiled WASM bytecode
-│   ├── module.aot            # AOT-compiled ARM code
-│   ├── module_aot.h          # Embedded binary (auto-generated)
 │   └── build.sh              # Module build script
 ├── wasm-micro-runtime/       # WAMR submodule
 ├── wamr.mk                   # WAMR build configuration
