@@ -18,6 +18,9 @@ static SDRAM sdram;
 // Macro for halting on errors
 #define ERROR_HALT while (true) {}
 
+// Macro for enabling audio
+#define RUN_AUDIO
+
 // C wrapper functions for WAMR platform to use SDRAM
 extern "C" {
     void* sdram_alloc(size_t size) {
@@ -193,6 +196,14 @@ float CallProcess(float input) {
     return result;
 }
 
+// basic mono->dual-mono callback
+static void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        out[0][i] = CallProcess(in[0][i]); 
+        out[1][i] = out[0][i];
+    }
+}
+
 int main() {
     hardware.Init();
     hardware.StartLog(true);
@@ -311,9 +322,16 @@ int main() {
 
     hardware.PrintLine("Test Complete!");
     hardware.SetLed(true);
-
-    // Prepare for next test
     System::Delay(200);
+
+    #ifndef RUN_AUDIO
+    // Prepare for next test
     System::ResetToBootloader(System::BootloaderMode::DAISY_INFINITE_TIMEOUT);
+    #endif
+
+    // Start Audio
+    hardware.SetAudioBlockSize(128); // number of samples handled per callback (buffer size)
+	hardware.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_48KHZ); // sample rate
+    hardware.StartAudio(AudioCallback);
     return 0;
 }
