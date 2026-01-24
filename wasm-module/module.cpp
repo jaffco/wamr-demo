@@ -9,7 +9,7 @@ public:
   void setFrequency(float freq) {
     frequency = freq;
     phaseInc = frequency / sampleRate;
-  }  
+  }
 
   float process() {
     phase += phaseInc;
@@ -17,18 +17,25 @@ public:
       phase -= 1.f;
     return phase;
   }
-
 };
 
-// Process one audio sample
-// This is exported to the host and called for each audio sample
-extern "C" float process(float input) {
+// Buffer-based audio processing function
+// This is exported to the host and called with blocks of audio samples
+extern "C" void process(const float* input, float* output, int num_samples) {
   static Phasor phasor;
-  static bool initialized = false;     
+  static bool initialized = false;
   if (!initialized) {
-    phasor.setFrequency(1.f);
+    phasor.setFrequency(1.f); // 1 Hz LFO
     initialized = true;
-  }   
-  float output = phasor.process();
-  return output;
+  }
+
+  // Process each sample in the buffer
+  for (int i = 0; i < num_samples; i++) {
+    // Generate a slow LFO signal (0-1 range)
+    float lfo = phasor.process();
+
+    // Mix input with LFO-modulated output
+    // This creates a tremolo effect
+    output[i] = input[i] * (0.3f + 0.7f * lfo);
+  }
 }

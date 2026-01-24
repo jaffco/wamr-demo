@@ -82,7 +82,8 @@ C_INCLUDES += \
 	-I$(WAMR_SHARED_DIR)/platform/include \
 	-I$(WAMR_PLATFORM_DIR) \
 	-I$(WAMR_SHARED_DIR)/mem-alloc \
-	-I$(WAMR_SHARED_DIR)/utils
+	-I$(WAMR_SHARED_DIR)/utils \
+	-Idaisy-wrapper
 
 # WAMR Configuration Defines
 C_DEFS += \

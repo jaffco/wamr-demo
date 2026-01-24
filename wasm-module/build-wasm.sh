@@ -71,7 +71,7 @@ xxd -i -n module_aot build/module.aot > build/module_aot.h
 
 echo ""
 echo "================================"
-echo "Plugin build complete!"
+echo "Module build complete!"
 echo "================================"
 echo "Generated files:"
 echo "  - build/module.wasm ($(wc -c < build/module.wasm) bytes)"

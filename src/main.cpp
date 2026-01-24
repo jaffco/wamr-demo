@@ -6,8 +6,8 @@ extern "C" {
 #include "wasm_export.h"
 }
 
-// Embedded AOT Module
-#include "../wasm-module/build/module_aot.h"
+// Daisy WAMR Wrapper
+#include "../daisy-wrapper/wamr_aot_wrapper.h"
 
 using namespace daisy;
 using namespace Jaffx;
@@ -76,132 +76,67 @@ public:
 
 static DaisySeed hardware;
 
-// WAMR Runtime Globals
-static char *global_heap_buf = nullptr;  // Will be allocated from SDRAM
-static const size_t WAMR_HEAP_SIZE = 256 * 1024; // 256KB for WAMR (using SDRAM)
-static wasm_module_t wasm_module = nullptr;
-static wasm_module_inst_t wasm_module_inst = nullptr;
-static wasm_exec_env_t exec_env = nullptr;
+// WAMR Engine using Daisy wrapper
+static WamrAotEngine* wamr_engine = nullptr;
 
-// Function reference - single exported function
-static wasm_function_inst_t func_process = nullptr;
+// Forward declarations for WAMR platform allocator functions
+extern "C" {
+void *os_malloc(unsigned size);
+void *os_realloc(void *ptr, unsigned size);
+void os_free(void *ptr);
+}
 
 /**
- * Initialize WAMR runtime and load embedded AOT module
+ * Initialize WAMR runtime using Daisy wrapper
  */
 bool InitWAMR() {
-    char error_buf[128];
-    RuntimeInitArgs init_args;
-    
-    hardware.PrintLine("Initializing WAMR runtime...");
-    // Allocate heap buffer from SDRAM
-    global_heap_buf = (char *)sdram.malloc(WAMR_HEAP_SIZE);
-    if (!global_heap_buf) {
-        hardware.PrintLine("ERROR: Failed to allocate WAMR heap from SDRAM");
+    hardware.PrintLine("Initializing WAMR runtime with Daisy wrapper...");
+
+    // Create WAMR engine (uses SDRAM allocator internally)
+    wamr_engine = wamr_aot_engine_new();
+    if (!wamr_engine) {
+        hardware.PrintLine("ERROR: Failed to create WAMR engine");
         ERROR_HALT
     }
-    hardware.PrintLine("Allocated %u KB from SDRAM for WAMR", WAMR_HEAP_SIZE / 1024);
-    
-    // Configure WAMR with fixed memory pool
-    memset(&init_args, 0, sizeof(RuntimeInitArgs));
-    init_args.mem_alloc_type = Alloc_With_Pool;
-    init_args.mem_alloc_option.pool.heap_buf = global_heap_buf;
-    init_args.mem_alloc_option.pool.heap_size = WAMR_HEAP_SIZE;
-    
-    if (!wasm_runtime_full_init(&init_args)) {
-        hardware.PrintLine("ERROR: Failed to initialize WAMR runtime");
-        ERROR_HALT
-    }
-    
-    hardware.PrintLine("WAMR runtime initialized (AOT-only mode)");
-    hardware.PrintLine("Heap pool: %u KB", WAMR_HEAP_SIZE / 1024);
-    
+
+    hardware.PrintLine("WAMR engine created (using SDRAM allocator)");
+
     // Load embedded AOT module
     hardware.PrintLine("Loading embedded AOT module...");
-    hardware.PrintLine("AOT size: %u bytes", module_aot_len);
-    
-    wasm_module = wasm_runtime_load(module_aot, module_aot_len,
-                                     error_buf, sizeof(error_buf));
-    if (!wasm_module) {
-        hardware.PrintLine("ERROR: Failed to load AOT module: %s", error_buf);
-        wasm_runtime_destroy();
+
+    if (!wamr_aot_engine_load_embedded_module(wamr_engine)) {
+        hardware.PrintLine("ERROR: Failed to load embedded AOT module");
+        wamr_aot_engine_delete(wamr_engine);
+        wamr_engine = nullptr;
         ERROR_HALT
     }
-    
-    hardware.PrintLine("AOT module loaded successfully");
-    
-    // Instantiate module with stack and heap
-    uint32_t stack_size = 8 * 1024;    // 8KB stack
-    uint32_t heap_size = 0;             // Try with no WASM heap first
-    
-    hardware.PrintLine("Instantiating module (stack: %uKB, heap: %uKB)...", 
-                      stack_size / 1024, heap_size / 1024);
-    
-    wasm_module_inst = wasm_runtime_instantiate(wasm_module, stack_size, heap_size,
-                                                 error_buf, sizeof(error_buf));
-    if (!wasm_module_inst) {
-        hardware.PrintLine("ERROR: Failed to instantiate module: %s", error_buf);
-        wasm_runtime_unload(wasm_module);
-        wasm_runtime_destroy();
-        ERROR_HALT
-    }
-    
-    hardware.PrintLine("Module instantiated (stack: %uKB, heap: %uKB)", 
-                      stack_size / 1024, heap_size / 1024);
-    
-    // Create execution environment
-    exec_env = wasm_runtime_create_exec_env(wasm_module_inst, stack_size);
-    if (!exec_env) {
-        hardware.PrintLine("ERROR: Failed to create execution environment");
-        wasm_runtime_deinstantiate(wasm_module_inst);
-        wasm_runtime_unload(wasm_module);
-        wasm_runtime_destroy();
-        ERROR_HALT
-    }
-    
-    hardware.PrintLine("Looking up exported function 'process'");
-    func_process = wasm_runtime_lookup_function(wasm_module_inst, "process");
-    
-    if (!func_process) {
-        hardware.PrintLine("ERROR: Could not find process function");
-        ERROR_HALT
-    }
-    
-    hardware.PrintLine("Function resolved: process(float) -> float");
-    
+
+    hardware.PrintLine("Embedded AOT module loaded and instantiated");
+    hardware.PrintLine("Function resolved: process(float*, float*, int)");
+
     return true;
 }
 
 /**
- * Call WASM function: process(float input) -> float
+ * Call WASM function: process(float* input, float* output, int num_samples)
+ * Wrapper for single sample processing using buffer-based interface
  */
 float CallProcess(float input) {
-    uint32_t argv[1];
-    
-    // Convert float input to bit pattern in argv
-    memcpy(&argv[0], &input, sizeof(float));
-    
-    // hardware.PrintLine("  [DEBUG] Calling WASM with input=" FLT_FMT3, FLT_VAR3(input));
-    
-    if (!wasm_runtime_call_wasm(exec_env, func_process, 1, argv)) {
-        hardware.PrintLine("ERROR: Failed to call process function");
-        ERROR_HALT
-    }
-    
-    // hardware.PrintLine("  [DEBUG] WASM call returned");
-    
-    // Return value is in argv[0] as bit pattern
-    float result;
-    memcpy(&result, &argv[0], sizeof(float));
-    return result;
+    float input_buffer[1] = {input};
+    float output_buffer[1] = {0.0f};
+
+    wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, 1);
+
+    return output_buffer[0];
 }
 
-// basic mono->dual-mono callback
+// Audio callback using buffer-based WAMR processing
 static void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        out[0][i] = CallProcess(in[0][i]); 
-        out[1][i] = out[0][i];
-    }
+    // Process the entire buffer at once using the WAMR wrapper
+    wamr_aot_engine_process(wamr_engine, in[0], out[0], size);
+
+    // Copy left channel to right channel for stereo output
+    memcpy(out[1], out[0], size * sizeof(float));
 }
 
 int main() {
@@ -210,7 +145,7 @@ int main() {
 
     System::Delay(200);
     hardware.PrintLine("===========================================");
-    hardware.PrintLine("    WAMR AOT Demo - Module     ");
+    hardware.PrintLine("    WAMR AOT Demo - Daisy Wrapper     ");
     hardware.PrintLine("===========================================");
     hardware.PrintLine("");
     

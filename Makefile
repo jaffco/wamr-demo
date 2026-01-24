@@ -3,6 +3,7 @@ TARGET = main
 
 # Sources
 CPP_SOURCES = src/main.cpp
+C_SOURCES = daisy-wrapper/wamr_aot_wrapper.c
 
 # WASM Module - Build before main compilation
 WASM_MODULE_DIR = wasm-module
