@@ -18,6 +18,9 @@ static SDRAM sdram;
 // Macro for halting on errors
 #define ERROR_HALT while (true) {}
 
+// Macro for block size
+#define BLOCK_SIZE 128
+
 // Macro for enabling audio
 // #define RUN_AUDIO
 
@@ -143,19 +146,6 @@ bool InitWAMR() {
     return true;
 }
 
-/**
- * Call WASM function: process(float* input, float* output, int num_samples)
- * Wrapper for single sample processing using buffer-based interface
- */
-float CallProcess(float input) {
-    float input_buffer[1] = {input};
-    float output_buffer[1] = {0.0f};
-
-    wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, 1);
-
-    return output_buffer[0];
-}
-
 // Audio callback using buffer-based WAMR processing
 static void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size) {
     // Process the entire buffer at once using the WAMR wrapper
@@ -193,7 +183,13 @@ int main() {
     hardware.PrintLine("Calling process() with various inputs...");
     for (int i = 0; i < 5; i++) {
         float input = (float)i * 0.1f;  // 0.0, 0.1, 0.2, 0.3, 0.4
-        float output = CallProcess(input);
+        
+        // prepare and process single-sample buffers
+        float input_buffer[1] = {input};
+        float output_buffer[1] = {0.0f};
+        wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, 1);
+        float output = output_buffer[0];
+
         hardware.PrintLine("  process(" FLT_FMT3 ") = " FLT_FMT3, FLT_VAR3(input), FLT_VAR3(output));
     }
     
@@ -210,8 +206,15 @@ int main() {
     hardware.PrintLine("[WARMUP] Running %d warmup iterations...", WARMUP_RUNS);
     volatile float warmup_result = 0.0f;
     for (int i = 0; i < WARMUP_RUNS; i++) {
-        float input = (i % 10) / 10.0f;
-        warmup_result += CallProcess(input);
+        
+        // prepare and process single-sample buffers
+        float input = daisy::Random::GetFloat(-1.f, 1.f);
+        float input_buffer[1] = {input};
+        float output_buffer[1] = {0.0f};
+        wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, 1);
+        float output = output_buffer[0];
+        
+        warmup_result += output;
     }
     hardware.PrintLine("[OK] Warmup complete (result=" FLT_FMT3 ")", FLT_VAR3(warmup_result));
     
@@ -228,12 +231,18 @@ int main() {
     volatile float checksum = 0.0f;
     
     for (int i = 0; i < BENCHMARK_RUNS; i++) {
-        // Use varying input to prevent optimization
-        float input = (i % 100) / 100.0f;
+
+        // prepare buffers
+        float input_buffer[BLOCK_SIZE];
+        float output_buffer[BLOCK_SIZE];
+        for (int j = 0; j < BLOCK_SIZE; j++) {
+            input_buffer[j] = daisy::Random::GetFloat(-1.f, 1.f);
+            output_buffer[j] = 0.f;
+        }
         
         JaffxTimer timer;
         timer.start();
-        float result = CallProcess(input);
+        wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, BLOCK_SIZE);
         timer.end();
         
         float elapsed_us = timer.usElapsed();
@@ -247,7 +256,11 @@ int main() {
         if (elapsed_ticks < min_ticks) min_ticks = elapsed_ticks;
         if (elapsed_ticks > max_ticks) max_ticks = elapsed_ticks;
         
-        checksum += result;
+        // use checksum to prevent optimization
+        for (int j = 0; j < BLOCK_SIZE; j++) {
+            checksum += output_buffer[j];
+        }        
+
     }
     
     float avg_us = total_us / BENCHMARK_RUNS;
@@ -262,7 +275,7 @@ int main() {
     hardware.PrintLine("Checksum:   " FLT_FMT3 " (prevents optimization)", FLT_VAR3(checksum));
     
     // Calculate real-time performance
-    float samples_per_us = 1.0f / avg_us;
+    float samples_per_us = (float)BLOCK_SIZE / avg_us;
     float samples_per_sec = samples_per_us * 1000000.0f;
     float realtime_factor_48k = samples_per_sec / 48000.0f;
     
@@ -291,7 +304,7 @@ int main() {
     #endif
 
     // Start Audio
-    hardware.SetAudioBlockSize(128); // number of samples handled per callback (buffer size)
+    hardware.SetAudioBlockSize(BLOCK_SIZE); // number of samples handled per callback (buffer size)
 	hardware.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_48KHZ); // sample rate
     hardware.StartAudio(AudioCallback);
     return 0;
