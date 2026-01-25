@@ -25,17 +25,12 @@ extern "C" void process(const float* input, float* output, int num_samples) {
   static Phasor phasor;
   static bool initialized = false;
   if (!initialized) {
-    phasor.setFrequency(1.f); // 1 Hz LFO
+    phasor.setFrequency(1000.f); // 1000 Hz LFO
     initialized = true;
   }
 
   // Process each sample in the buffer
   for (int i = 0; i < num_samples; i++) {
-    // Generate a slow LFO signal (0-1 range)
-    float lfo = phasor.process();
-
-    // Mix input with LFO-modulated output
-    // This creates a tremolo effect
-    output[i] = input[i] * (0.3f + 0.7f * lfo);
+    output[i] = phasor.process();
   }
 }

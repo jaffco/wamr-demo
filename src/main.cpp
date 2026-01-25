@@ -19,7 +19,7 @@ static SDRAM sdram;
 #define ERROR_HALT while (true) {}
 
 // Macro for enabling audio
-#define RUN_AUDIO
+// #define RUN_AUDIO
 
 // C wrapper functions for WAMR platform to use SDRAM
 extern "C" {
@@ -112,6 +112,24 @@ bool InitWAMR() {
     }
 
     hardware.PrintLine("Embedded AOT module loaded and instantiated");
+
+    // CRITICAL FIX: Zero the BSS/static memory region
+    // AOT modules don't automatically zero-initialize linear memory for C++ statics.
+    // Function-local static variables (like in module.cpp) need zeroed memory to initialize properly.
+    // Static data region determined from WASM disassembly: addresses 1024-1056
+    uint32_t static_start = 1024;
+    uint32_t static_size = 32;
+    void* static_ptr = wasm_runtime_addr_app_to_native(
+        wasm_runtime_get_module_inst(wamr_engine->exec_env), static_start);
+
+    if (static_ptr) {
+        memset(static_ptr, 0, static_size);
+        hardware.PrintLine("Initialized C++ static memory region");
+    } else {
+        hardware.PrintLine("ERROR: Could not access static memory region");
+        ERROR_HALT
+    }
+
     hardware.PrintLine("Function resolved: process(float*, float*, int)");
 
     return true;

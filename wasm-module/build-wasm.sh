@@ -23,11 +23,12 @@ echo "Using emscripten: $(which emcc)"
 # Compile C++ to WASM using emscripten
 echo "Step 1: Compiling C++ to WASM..."
 emcc \
-    -O3 \
-    -s STANDALONE_WASM=1 \
-    -s EXPORTED_FUNCTIONS='["_process"]' \
-    -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
-    -Wl,--no-entry \
+    -O2 \
+    -sSTANDALONE_WASM \
+    -sEXPORTED_RUNTIME_METHODS=[] \
+    -sEXPORTED_FUNCTIONS=_process \
+    -sERROR_ON_UNDEFINED_SYMBOLS=0 \
+    --no-entry \
     -o build/module.wasm \
     module.cpp
 
