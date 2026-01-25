@@ -10,27 +10,30 @@
 #define HEAP_SIZE (16 * 1024)  // Match main.cpp heap size
 
 // Forward declarations for SDRAM allocator functions
-// extern void* sdram_alloc(size_t size);
-// extern void* sdram_realloc(void* ptr, size_t size);
-// extern void sdram_dealloc(void* ptr);
+extern void* sdram_alloc(size_t size);
+extern void* sdram_realloc(void* ptr, size_t size);
+extern void sdram_dealloc(void* ptr);
+extern void* sdram_calloc(size_t nmemb, size_t size);
 
-// Use standard malloc for now to test
-#define sdram_alloc malloc
-#define sdram_realloc realloc
-#define sdram_dealloc free
+// Wrapper to use calloc instead of malloc for zero-initialization
+static void* wamr_calloc_wrapper(unsigned size) {
+    // Use calloc(1, size) to get zero-initialized memory
+    return sdram_calloc(1, size);
+}
 
 WamrAotEngine* wamr_aot_engine_new(void) {
-    WamrAotEngine* engine = calloc(1, sizeof(WamrAotEngine));
+    WamrAotEngine* engine = sdram_calloc(1, sizeof(WamrAotEngine));
     if (!engine) return NULL;
 
     RuntimeInitArgs init_args = {0};
     init_args.mem_alloc_type = Alloc_With_Allocator;
-    init_args.mem_alloc_option.allocator.malloc_func = (void*)sdram_alloc;
+    // Use calloc wrapper to ensure all WAMR allocations are zero-initialized
+    init_args.mem_alloc_option.allocator.malloc_func = (void*)wamr_calloc_wrapper;
     init_args.mem_alloc_option.allocator.realloc_func = (void*)sdram_realloc;
     init_args.mem_alloc_option.allocator.free_func = (void*)sdram_dealloc;
 
     if (!wasm_runtime_full_init(&init_args)) {
-        free(engine);
+        sdram_dealloc(engine);
         return NULL;
     }
 
@@ -43,7 +46,7 @@ void wamr_aot_engine_delete(WamrAotEngine* engine) {
     if (engine->instance) wasm_runtime_deinstantiate(engine->instance);
     if (engine->module) wasm_runtime_unload(engine->module);
     wasm_runtime_destroy();
-    free(engine);
+    sdram_dealloc(engine);
 }
 
 bool wamr_aot_engine_load_embedded_module(WamrAotEngine* engine) {

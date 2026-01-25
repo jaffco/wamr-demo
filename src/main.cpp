@@ -113,20 +113,28 @@ bool InitWAMR() {
 
     hardware.PrintLine("Embedded AOT module loaded and instantiated");
 
-    // CRITICAL FIX: Zero the BSS/static memory region
-    // AOT modules don't automatically zero-initialize linear memory for C++ statics.
-    // Function-local static variables (like in module.cpp) need zeroed memory to initialize properly.
-    // Static data region determined from WASM disassembly: addresses 1024-1056
-    uint32_t static_start = 1024;
-    uint32_t static_size = 32;
-    void* static_ptr = wasm_runtime_addr_app_to_native(
-        wasm_runtime_get_module_inst(wamr_engine->exec_env), static_start);
+    // CRITICAL: Zero-initialize WASM static data region
+    // Background: AOT-compiled WASM modules don't automatically zero-initialize
+    // their linear memory's BSS section. C++ function-local static variables
+    // rely on zero-initialized guard bytes to trigger proper initialization.
+    // Solution: Zero the first 8KB of linear memory (generous coverage of static data)
+    // This works generically for any WASM module without hardcoded addresses.
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(wamr_engine->exec_env);
+    wasm_memory_inst_t memory = wasm_runtime_get_default_memory(module_inst);
 
-    if (static_ptr) {
-        memset(static_ptr, 0, static_size);
-        hardware.PrintLine("Initialized C++ static memory region");
+    if (memory) {
+        void* mem_base = wasm_memory_get_base_address(memory);
+
+        if (mem_base) {
+            const uint32_t static_region_size = 8192;  // 8KB covers static data for most modules
+            memset(mem_base, 0, static_region_size);
+            hardware.PrintLine("WASM static region zeroed (%d bytes in SDRAM)", static_region_size);
+        } else {
+            hardware.PrintLine("ERROR: Could not get memory base address");
+            ERROR_HALT
+        }
     } else {
-        hardware.PrintLine("ERROR: Could not access static memory region");
+        hardware.PrintLine("ERROR: Could not get default memory instance");
         ERROR_HALT
     }
 
