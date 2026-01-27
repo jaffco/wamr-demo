@@ -10,10 +10,13 @@ extern "C" {
 #include "../daisy-wrapper/wamr_aot_wrapper.h"
 
 using namespace daisy;
-using namespace Jaffx;
+static DaisySeed hardware;
 
 // Global SDRAM allocator instance
-static SDRAM sdram;
+static Jaffx::SDRAM sdram;
+
+// WAMR runtime engine
+static WamrAotEngine* wamr_engine = nullptr;
 
 // Macro for halting on errors
 #define ERROR_HALT while (true) {}
@@ -43,7 +46,7 @@ extern "C" {
     }
 }
 
-class JaffxTimer {
+class Timer {
 private:
   bool mDone = false;
   unsigned int mStartTime = 0;
@@ -77,16 +80,11 @@ public:
   }
 };
 
-static DaisySeed hardware;
-
-// WAMR Engine using Daisy wrapper
-static WamrAotEngine* wamr_engine = nullptr;
-
 // Forward declarations for WAMR platform allocator functions
 extern "C" {
-void *os_malloc(unsigned size);
-void *os_realloc(void *ptr, unsigned size);
-void os_free(void *ptr);
+    void *os_malloc(unsigned size);
+    void *os_realloc(void *ptr, unsigned size);
+    void os_free(void *ptr);
 }
 
 /**
@@ -143,6 +141,11 @@ bool InitWAMR() {
 
     hardware.PrintLine("Function resolved: process(float*, float*, int)");
 
+    // WAMR initialized successfully!
+    hardware.PrintLine("");
+    hardware.PrintLine("WAMR initialized and ready!");
+    hardware.PrintLine("");
+
     return true;
 }
 
@@ -157,11 +160,11 @@ static void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer
 
 int main() {
     hardware.Init();
-    hardware.StartLog(true);
+    hardware.StartLog(true); // wait for serial connection
 
     System::Delay(200);
     hardware.PrintLine("===========================================");
-    hardware.PrintLine("    WAMR AOT Demo - Daisy Wrapper     ");
+    hardware.PrintLine("       WAMR AOT Demo - Daisy Wrapper       ");
     hardware.PrintLine("===========================================");
     hardware.PrintLine("");
     
@@ -199,7 +202,7 @@ int main() {
     
     // Benchmark configuration (same as your example)
     const int WARMUP_RUNS = 10;
-    const int BENCHMARK_RUNS = 48000;  // 1 second at 48kHz
+    const int BENCHMARK_RUNS = 100;
     
     // Warmup phase
     hardware.PrintLine("");
@@ -240,7 +243,7 @@ int main() {
             output_buffer[j] = 0.f;
         }
         
-        JaffxTimer timer;
+        Timer timer;
         timer.start();
         wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, BLOCK_SIZE);
         timer.end();
