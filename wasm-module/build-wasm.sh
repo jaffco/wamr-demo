@@ -34,33 +34,33 @@ emcc \
 
 echo "WASM module size: $(wc -c < build/module.wasm) bytes"
 
-# Check for wamrc
+# Check for wamrc and build if missing
 if [ ! -f "$WAMR_ROOT/wamr-compiler/build/wamrc" ]; then
     echo ""
-    echo "ERROR: wamrc not found at $WAMR_ROOT/wamr-compiler/build/wamrc"
-    echo ""
+    echo "wamrc not found at $WAMR_ROOT/wamr-compiler/build/wamrc"
     echo "Building wamrc AOT compiler (this takes a few minutes)..."
     pushd $WAMR_ROOT/wamr-compiler > /dev/null
-    if [ ! -d "build" ]; then
-        echo "Building LLVM dependencies..."
-        ./build_llvm.sh
-        mkdir -p build
-        cd build
-        echo "Building wamrc..."
-        cmake ..
-        make -j$(sysctl -n hw.ncpu)
-    fi
+    # build_llvm.sh handles LLVM cloning and building (has internal idempotency checks)
+    echo "Building LLVM dependencies..."
+    ./build_llvm.sh
+    # Build wamrc
+    mkdir -p build
+    cd build
+    echo "Configuring wamrc..."
+    cmake ..
+    echo "Building wamrc..."
+    make -j$(sysctl -n hw.ncpu)
     popd > /dev/null
     echo "wamrc build complete!"
 fi
 
 # Compile WASM to AOT for Cortex-M7
+# Note: bulk memory is enabled by default in wamrc
 echo "Step 2: Compiling WASM to AOT..."
 $WAMR_ROOT/wamr-compiler/build/wamrc \
     --target=thumbv7em \
     --cpu=cortex-m7 \
     --size-level=3 \
-    --enable-builtin-intrinsics=i64.common,fp.common \
     -o build/module.aot \
     build/module.wasm
 

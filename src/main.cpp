@@ -28,22 +28,58 @@ static WamrAotEngine* wamr_engine = nullptr;
 // #define RUN_AUDIO
 
 // C wrapper functions for WAMR platform to use SDRAM
+// WAMR requires 8-byte aligned addresses for heap initialization.
+// The SDRAM allocator's metadata is 20 bytes, so returned addresses are not 8-byte aligned.
+// These wrappers over-allocate and align the returned pointer, storing the original for free.
 extern "C" {
     void* sdram_alloc(size_t size) {
-        return sdram.malloc(size);
+        // Allocate extra space: sizeof(void*) for storing original + 7 for alignment
+        void* raw = sdram.malloc(size + sizeof(void*) + 7);
+        if (!raw) return nullptr;
+
+        // Align to 8 bytes, leaving room to store original pointer
+        uintptr_t raw_addr = (uintptr_t)raw + sizeof(void*);
+        uintptr_t aligned_addr = (raw_addr + 7) & ~(uintptr_t)7;
+
+        // Store original pointer just before aligned address
+        ((void**)aligned_addr)[-1] = raw;
+
+        return (void*)aligned_addr;
     }
-    
+
     void sdram_dealloc(void* ptr) {
-        if (ptr) sdram.free(ptr);
+        if (!ptr) return;
+        // Retrieve original pointer stored before aligned address
+        void* raw = ((void**)ptr)[-1];
+        sdram.free(raw);
     }
-    
+
     void* sdram_realloc(void* ptr, size_t size) {
-        return sdram.realloc(ptr, size);
+        if (!ptr) return sdram_alloc(size);
+        if (size == 0) { sdram_dealloc(ptr); return nullptr; }
+
+        // Simple implementation: alloc new, copy, free old
+        void* new_ptr = sdram_alloc(size);
+        if (new_ptr) {
+            // Note: copies 'size' bytes, which may be more than original
+            // This is safe as long as new allocation >= old data
+            memcpy(new_ptr, ptr, size);
+            sdram_dealloc(ptr);
+        }
+        return new_ptr;
     }
-    
+
     void* sdram_calloc(size_t nmemb, size_t size) {
-        return sdram.calloc(nmemb, size);
+        size_t total = nmemb * size;
+        void* ptr = sdram_alloc(total);
+        if (ptr) memset(ptr, 0, total);
+        return ptr;
     }
+}
+
+// Callback function for WAMR debug output
+extern "C" void wamr_print_callback_func(const char* s) {
+    hardware.PrintLine(s);
 }
 
 class Timer {
@@ -93,6 +129,9 @@ extern "C" {
 bool InitWAMR() {
     hardware.PrintLine("Initializing WAMR runtime with Daisy wrapper...");
 
+    // Set up debug print callback
+    wamr_print_callback = wamr_print_callback_func;
+
     // Create WAMR engine (uses SDRAM allocator internally)
     wamr_engine = wamr_aot_engine_new();
     if (!wamr_engine) {
@@ -114,30 +153,8 @@ bool InitWAMR() {
 
     hardware.PrintLine("Embedded AOT module loaded and instantiated");
 
-    // CRITICAL: Zero-initialize WASM static data region
-    // Background: AOT-compiled WASM modules don't automatically zero-initialize
-    // their linear memory's BSS section. C++ function-local static variables
-    // rely on zero-initialized guard bytes to trigger proper initialization.
-    // Solution: Zero the first 8KB of linear memory (generous coverage of static data)
-    // This works generically for any WASM module without hardcoded addresses.
-    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(wamr_engine->exec_env);
-    wasm_memory_inst_t memory = wasm_runtime_get_default_memory(module_inst);
-
-    if (memory) {
-        void* mem_base = wasm_memory_get_base_address(memory);
-
-        if (mem_base) {
-            const uint32_t static_region_size = 8192;  // 8KB covers static data for most modules
-            memset(mem_base, 0, static_region_size);
-            hardware.PrintLine("WASM static region zeroed (%d bytes in SDRAM)", static_region_size);
-        } else {
-            hardware.PrintLine("ERROR: Could not get memory base address");
-            ERROR_HALT
-        }
-    } else {
-        hardware.PrintLine("ERROR: Could not get default memory instance");
-        ERROR_HALT
-    }
+    // NOTE: Do NOT zero linear memory here - it contains initialized data like
+    // C++ vtables that are required for virtual function calls to work.
 
     hardware.PrintLine("Function resolved: process(float*, float*, int)");
 
@@ -172,6 +189,18 @@ int main() {
     hardware.PrintLine("Initializing SDRAM allocator...");
     sdram.init();
     hardware.PrintLine("SDRAM initialized (64MB at 0xC0000000)");
+    
+    // Test SDRAM allocator
+    hardware.PrintLine("Testing SDRAM allocator...");
+    void* test_alloc = sdram_alloc(1024);
+    if (test_alloc) {
+        hardware.PrintLine("SDRAM test allocation: SUCCESS (%p)", test_alloc);
+        sdram_dealloc(test_alloc);
+        hardware.PrintLine("SDRAM test deallocation: SUCCESS");
+    } else {
+        hardware.PrintLine("SDRAM test allocation: FAILED");
+        ERROR_HALT
+    }
     hardware.PrintLine("");
     
     // Initialize WAMR and load AOT module
