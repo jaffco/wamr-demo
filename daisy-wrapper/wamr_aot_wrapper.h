@@ -5,6 +5,12 @@
 extern "C" {
 #endif
 
+typedef void (*wamr_print_callback_t)(const char*);
+
+extern wamr_print_callback_t wamr_print_callback;
+
+void wamr_print(const char* format, ...);
+
 typedef struct {
     wasm_module_t module;
     wasm_module_inst_t instance;

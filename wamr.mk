@@ -64,6 +64,7 @@ ASM_SOURCES += \
 # Utility functions
 C_SOURCES += \
 	$(WAMR_SHARED_DIR)/utils/bh_assert.c \
+	$(WAMR_SHARED_DIR)/utils/bh_bitmap.c \
 	$(WAMR_SHARED_DIR)/utils/bh_common.c \
 	$(WAMR_SHARED_DIR)/utils/bh_hashmap.c \
 	$(WAMR_SHARED_DIR)/utils/bh_list.c \
@@ -97,6 +98,7 @@ C_DEFS += \
 	-DWASM_ENABLE_FAST_JIT=0 \
 	-DWASM_ENABLE_LIBC_BUILTIN=1 \
 	-DWASM_ENABLE_LIBC_WASI=0 \
+	-DWASM_ENABLE_BULK_MEMORY=1 \
 	-DWASM_ENABLE_MULTI_MODULE=0 \
 	-DWASM_ENABLE_SHARED_MEMORY=0 \
 	-DWASM_ENABLE_MINI_LOADER=1 \
