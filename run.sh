@@ -4,7 +4,7 @@ set -e
 
 cd ./wasm-module && ./build-wasm.sh && cd ..
 
-make
+make -j$(getconf _NPROCESSORS_ONLN)
 make program-dfu
 
 # https://github.com/electro-smith/DaisyWiki/wiki/1.-Setting-Up-Your-Development-Environment#4a-flashing-the-daisy-via-usb
