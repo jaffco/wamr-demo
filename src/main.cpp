@@ -326,6 +326,74 @@ int main() {
     hardware.PrintLine("");
     hardware.PrintLine("[SUCCESS] WAMR AOT benchmark complete!");
 
+    // =============================================
+    // IMPULSE RESPONSE TEST (10 seconds)
+    // =============================================
+    hardware.PrintLine("");
+    hardware.PrintLine("=== IMPULSE RESPONSE TEST ===");
+    hardware.PrintLine("Processing 10 seconds of audio at 48kHz");
+    hardware.PrintLine("Firing an impulse (1.0) every second");
+    hardware.PrintLine("");
+
+    const int SAMPLE_RATE = 48000;
+    const int TOTAL_SECONDS = 5;
+    const int TOTAL_SAMPLES = SAMPLE_RATE * TOTAL_SECONDS;
+    const int TOTAL_BLOCKS = TOTAL_SAMPLES / BLOCK_SIZE;
+
+    // Allocate output storage in SDRAM
+    float* impulse_outputs = (float*)sdram.malloc(TOTAL_SAMPLES * sizeof(float));
+    if (!impulse_outputs) {
+        hardware.PrintLine("[ERROR] Failed to allocate impulse output buffer!");
+        ERROR_HALT
+    }
+    hardware.PrintLine("Allocated %d samples in SDRAM", TOTAL_SAMPLES);
+
+    // Process all blocks
+    for (int block = 0; block < TOTAL_BLOCKS; block++) {
+        float input_buffer[BLOCK_SIZE];
+        float output_buffer[BLOCK_SIZE];
+
+        // Fill with silence
+        for (int j = 0; j < BLOCK_SIZE; j++) {
+            input_buffer[j] = 0.0f;
+            output_buffer[j] = 0.0f;
+        }
+
+        // Fire impulse at the start of each second
+        int sample_offset = block * BLOCK_SIZE;
+        if (sample_offset % SAMPLE_RATE == 0) {
+            input_buffer[0] = 1.0f;
+            hardware.PrintLine("  Impulse at second %d (sample %d)", sample_offset / SAMPLE_RATE, sample_offset);
+        }
+
+        // Process through WASM module
+        wamr_aot_engine_process(wamr_engine, input_buffer, output_buffer, BLOCK_SIZE);
+
+        // Store outputs
+        for (int j = 0; j < BLOCK_SIZE; j++) {
+            impulse_outputs[sample_offset + j] = output_buffer[j];
+        }
+    }
+
+    hardware.PrintLine("");
+    hardware.PrintLine("Processing complete. Logging %d samples...", TOTAL_SAMPLES);
+    hardware.PrintLine("");
+
+    // Print all samples with demarcator lines between seconds
+    for (int i = 0; i < TOTAL_SAMPLES; i++) {
+        if (i % SAMPLE_RATE == 0) {
+            hardware.PrintLine("========== SECOND %d ==========", i / SAMPLE_RATE);
+        }
+        // Scale float to integer for precise serial transmission (5 decimal places)
+        int scaled = (int)(impulse_outputs[i] * 100000.0f);
+        hardware.PrintLine("S:%d", scaled);
+    }
+
+    hardware.PrintLine("=== IMPULSE RESPONSE TEST COMPLETE ===");
+
+    // Free the SDRAM allocation
+    sdram.free(impulse_outputs);
+
     hardware.PrintLine("Test Complete!");
     hardware.SetLed(true);
     System::Delay(200);

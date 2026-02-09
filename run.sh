@@ -23,3 +23,33 @@ echo "Connecting to device: $DEVICE"
 
 # Connect to the device and log output
 script log.txt screen $DEVICE 115200
+
+# Process log.txt into WAV file
+echo ""
+echo "Processing log.txt into impulse_response.wav..."
+python3 -c "
+import wave, struct, re, sys
+
+samples = []
+with open('log.txt', 'r') as f:
+    for line in f:
+        m = re.search(r'S:(-?\d+)', line)
+        if m:
+            samples.append(int(m.group(1)) / 100000.0)
+
+if not samples:
+    print('No audio samples found in log.txt')
+    sys.exit(1)
+
+print(f'Found {len(samples)} samples ({len(samples)/48000:.1f}s at 48kHz)')
+
+with wave.open('impulse_response.wav', 'w') as wav:
+    wav.setnchannels(1)
+    wav.setsampwidth(2)
+    wav.setframerate(48000)
+    for s in samples:
+        s = max(-1.0, min(1.0, s))
+        wav.writeframes(struct.pack('<h', int(s * 32767)))
+
+print(f'Written impulse_response.wav')
+"
