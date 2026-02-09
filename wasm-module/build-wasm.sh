@@ -29,6 +29,7 @@ emcc \
     -sEXPORTED_FUNCTIONS=_process \
     -sERROR_ON_UNDEFINED_SYMBOLS=0 \
     --no-entry \
+    -I.. \
     -o build/module.wasm \
     module.cpp
 

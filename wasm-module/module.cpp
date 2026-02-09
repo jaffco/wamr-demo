@@ -26,26 +26,24 @@ public:
     virtual void buildUserInterface(UI* ui_interface) = 0;
 };
 
-#include "springreverb.cpp"
+#include "Portaklon/Portaklon.hpp"
 
 // Sample rate constant - adjust based on your audio setup
 #define SAMPLE_RATE 48000
+#define BLOCK_SIZE 128
 
 extern "C" {    
 
 void process(float* input, float* output, int num_samples) {
-    static mydsp mDSP;
+    static Portaklon portaklon;
     static bool firstRun = true;
     if (firstRun) {
-        mDSP.init(SAMPLE_RATE);
+        portaklon.init(SAMPLE_RATE, BLOCK_SIZE);
         firstRun = false;
     }
 
-    // compute() expects an array of channel pointers (float**)
-    // For mono input/output, create arrays with single pointers
-    float* inputs[1] = {input};
-    float* outputs[1] = {output};
-    mDSP.compute(num_samples, inputs, outputs);
+    // Portaklon processes mono audio
+    portaklon.process(input, output, num_samples);
 }
 
 }

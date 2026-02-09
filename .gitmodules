@@ -4,3 +4,6 @@
 [submodule "wasm-micro-runtime"]
 	path = wasm-micro-runtime
 	url = https://github.com/jaffco/wasm-micro-runtime
+[submodule "wasm-module/Portaklon"]
+	path = wasm-module/Portaklon
+	url = https://github.com/jaffco/Portaklon
