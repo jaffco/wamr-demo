@@ -29,6 +29,13 @@ emcc \
     -sEXPORTED_FUNCTIONS=_process \
     -sERROR_ON_UNDEFINED_SYMBOLS=0 \
     --no-entry \
+    -I RTNeural \
+    -I RTNeural/modules \
+    -I RTNeural/modules/rt-nam \
+    -I RTNeural/modules/Eigen \
+    -DRTNEURAL_DEFAULT_ALIGNMENT=8 \
+    -DRTNEURAL_NO_DEBUG=1 \
+    -DRTNEURAL_USE_EIGEN=1 \
     -o build/module.wasm \
     module.cpp
 
@@ -60,7 +67,7 @@ echo "Step 2: Compiling WASM to AOT..."
 $WAMR_ROOT/wamr-compiler/build/wamrc \
     --target=thumbv7em \
     --cpu=cortex-m7 \
-    --size-level=3 \
+    --size-level=0 \
     -o build/module.aot \
     build/module.wasm
 
