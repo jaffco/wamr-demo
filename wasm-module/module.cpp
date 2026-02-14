@@ -1,51 +1,20 @@
-// Base classes needed by FAUST-generated code
-class Meta {
-public:
-    virtual void declare(const char* key, const char* value) = 0;
-    virtual ~Meta() {}
-};
+#include "Phhhsrrr/gen_exported.cpp"
 
-class UI {
-public:
-    virtual void openHorizontalBox(const char* label) = 0;
-    virtual void openVerticalBox(const char* label) = 0;
-    virtual void closeBox() = 0;
-    virtual void declare(float* zone, const char* key, const char* val) = 0;
-    virtual void addVerticalSlider(const char* label, float* zone, float init, float min, float max, float step) = 0;
-    virtual void addNumEntry(const char* label, float* zone, float init, float min, float max, float step) = 0;
-    virtual ~UI() {}
-};
-
-class dsp {
-public:
-    virtual ~dsp() {}
-    virtual int getNumInputs() = 0;
-    virtual int getNumOutputs() = 0;
-    virtual void init(int sample_rate) = 0;
-    virtual void compute(int count, float** inputs, float** outputs) = 0;
-    virtual void buildUserInterface(UI* ui_interface) = 0;
-};
-
-#include "springreverb.cpp"
-
-// Sample rate constant - adjust based on your audio setup
 #define SAMPLE_RATE 48000
 
-extern "C" {    
+extern "C" {
 
 void process(float* input, float* output, int num_samples) {
-    static mydsp mDSP;
-    static bool firstRun = true;
-    if (firstRun) {
-        mDSP.init(SAMPLE_RATE);
-        firstRun = false;
+    static CommonState* state = nullptr;
+    if (!state) {
+        state = (CommonState*)gen_exported::create(SAMPLE_RATE, num_samples);
     }
 
-    // compute() expects an array of channel pointers (float**)
-    // For mono input/output, create arrays with single pointers
-    float* inputs[1] = {input};
-    float* outputs[1] = {output};
-    mDSP.compute(num_samples, inputs, outputs);
+    // gen_exported::perform expects arrays of channel pointers
+    // Phhhsrrr has 2 inputs (in1, in2) and 1 output (out1)
+    t_sample* ins[2] = {(t_sample*)input, (t_sample*)input};
+    t_sample* outs[1] = {(t_sample*)output};
+    gen_exported::perform(state, ins, 2, outs, 1, num_samples);
 }
 
 }

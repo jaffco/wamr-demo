@@ -29,8 +29,14 @@ emcc \
     -sEXPORTED_FUNCTIONS=_process \
     -sERROR_ON_UNDEFINED_SYMBOLS=0 \
     --no-entry \
+    -DGENLIB_NO_JSON \
+    -DGENLIB_USE_FLOAT32 \
+    -DGENLIB_NO_DENORM_TEST \
+    -DWIN32 \
+    -IPhhhsrrr/gen_dsp \
     -o build/module.wasm \
-    module.cpp
+    module.cpp \
+    Phhhsrrr/gen_dsp/genlib.cpp  
 
 echo "WASM module size: $(wc -c < build/module.wasm) bytes"
 
