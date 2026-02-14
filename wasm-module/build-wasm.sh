@@ -20,10 +20,15 @@ fi
 
 echo "Using emscripten: $(which emcc)"
 
+# Compile math import stubs (declares wrapped math funcs as WASM imports)
+echo "Step 1a: Compiling math import stubs..."
+emcc -c -O0 math_imports.c -o build/math_imports.o
+
 # Compile C++ to WASM using emscripten
-echo "Step 1: Compiling C++ to WASM..."
+echo "Step 1b: Compiling C++ to WASM..."
 emcc \
-    -O2 \
+    -O3 \
+    -ffast-math \
     -sSTANDALONE_WASM \
     -sEXPORTED_RUNTIME_METHODS=[] \
     -sEXPORTED_FUNCTIONS=_process \
@@ -36,8 +41,13 @@ emcc \
     -DRTNEURAL_DEFAULT_ALIGNMENT=8 \
     -DRTNEURAL_NO_DEBUG=1 \
     -DRTNEURAL_USE_EIGEN=1 \
+    -Wl,--wrap=tanhf -Wl,--wrap=tanh \
+    -Wl,--wrap=expf -Wl,--wrap=exp \
+    -Wl,--wrap=logf -Wl,--wrap=log \
+    -Wl,--wrap=sinf -Wl,--wrap=cosf -Wl,--wrap=tanf \
+    -Wl,--wrap=sin -Wl,--wrap=cos -Wl,--wrap=tan \
     -o build/module.wasm \
-    module.cpp
+    build/math_imports.o module.cpp
 
 echo "WASM module size: $(wc -c < build/module.wasm) bytes"
 
@@ -67,6 +77,7 @@ echo "Step 2: Compiling WASM to AOT..."
 $WAMR_ROOT/wamr-compiler/build/wamrc \
     --target=thumbv7em \
     --cpu=cortex-m7 \
+    --opt-level=3 \
     --size-level=0 \
     -o build/module.aot \
     build/module.wasm

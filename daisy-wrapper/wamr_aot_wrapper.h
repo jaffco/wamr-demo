@@ -16,6 +16,10 @@ typedef struct {
     wasm_module_inst_t instance;
     wasm_exec_env_t exec_env;
     wasm_function_inst_t process_func;
+    // Pre-allocated WASM-side I/O buffers
+    uint32_t input_offset;
+    uint32_t output_offset;
+    int buffer_samples;
 } WamrAotEngine;
 
 WamrAotEngine* wamr_aot_engine_new(void);
