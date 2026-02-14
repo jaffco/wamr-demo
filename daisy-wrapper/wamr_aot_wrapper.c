@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <math.h>
 
 // Embedded AOT Module
 #include "../wasm-module/build/module_aot.h"
@@ -15,6 +16,37 @@ extern void* sdram_alloc(size_t size);
 extern void* sdram_realloc(void* ptr, size_t size);
 extern void sdram_dealloc(void* ptr);
 extern void* sdram_calloc(size_t nmemb, size_t size);
+
+// Native math wrappers for WAMR (first param is always wasm_exec_env_t)
+static float native_tanhf(wasm_exec_env_t env, float x) { return tanhf(x); }
+static float native_expf(wasm_exec_env_t env, float x) { return expf(x); }
+static float native_logf(wasm_exec_env_t env, float x) { return logf(x); }
+static float native_sinf(wasm_exec_env_t env, float x) { return sinf(x); }
+static float native_cosf(wasm_exec_env_t env, float x) { return cosf(x); }
+static float native_tanf(wasm_exec_env_t env, float x) { return tanf(x); }
+static double native_tanh(wasm_exec_env_t env, double x) { return tanh(x); }
+static double native_exp(wasm_exec_env_t env, double x) { return exp(x); }
+static double native_log(wasm_exec_env_t env, double x) { return log(x); }
+static double native_sin(wasm_exec_env_t env, double x) { return sin(x); }
+static double native_cos(wasm_exec_env_t env, double x) { return cos(x); }
+static double native_tan(wasm_exec_env_t env, double x) { return tan(x); }
+
+static NativeSymbol native_math_symbols[] = {
+    { "tanhf", (void*)native_tanhf, "(f)f", NULL },
+    { "expf",  (void*)native_expf,  "(f)f", NULL },
+    { "logf",  (void*)native_logf,  "(f)f", NULL },
+    { "sinf",  (void*)native_sinf,  "(f)f", NULL },
+    { "cosf",  (void*)native_cosf,  "(f)f", NULL },
+    { "tanf",  (void*)native_tanf,  "(f)f", NULL },
+    { "tanh",  (void*)native_tanh,  "(F)F", NULL },
+    { "exp",   (void*)native_exp,   "(F)F", NULL },
+    { "log",   (void*)native_log,   "(F)F", NULL },
+    { "sin",   (void*)native_sin,   "(F)F", NULL },
+    { "cos",   (void*)native_cos,   "(F)F", NULL },
+    { "tan",   (void*)native_tan,   "(F)F", NULL },
+};
+
+#define NUM_NATIVE_MATH_SYMBOLS (sizeof(native_math_symbols) / sizeof(NativeSymbol))
 
 // Global print callback
 wamr_print_callback_t wamr_print_callback = NULL;
@@ -60,11 +92,23 @@ WamrAotEngine* wamr_aot_engine_new(void) {
     }
     wamr_print("WAMR runtime initialized successfully\n");
 
+    // Register native math functions so WASM imports resolve to ARM-native code
+    if (!wasm_runtime_register_natives("env", native_math_symbols, NUM_NATIVE_MATH_SYMBOLS)) {
+        wamr_print("ERROR: Failed to register native math functions\n");
+        sdram_dealloc(engine);
+        return NULL;
+    }
+    wamr_print("Registered %d native math functions\n", (int)NUM_NATIVE_MATH_SYMBOLS);
+
     return engine;
 }
 
 void wamr_aot_engine_delete(WamrAotEngine* engine) {
     if (!engine) return;
+    if (engine->instance) {
+        if (engine->input_offset) wasm_runtime_module_free(engine->instance, engine->input_offset);
+        if (engine->output_offset) wasm_runtime_module_free(engine->instance, engine->output_offset);
+    }
     if (engine->exec_env) wasm_runtime_destroy_exec_env(engine->exec_env);
     if (engine->instance) wasm_runtime_deinstantiate(engine->instance);
     if (engine->module) wasm_runtime_unload(engine->module);
@@ -121,6 +165,24 @@ bool wamr_aot_engine_load_embedded_module(WamrAotEngine* engine) {
         return false;
     }
 
+    // Pre-allocate WASM-side I/O buffers (128 samples = typical audio block size)
+    engine->buffer_samples = 128;
+    engine->input_offset = wasm_runtime_module_malloc(engine->instance,
+        engine->buffer_samples * sizeof(float), NULL);
+    engine->output_offset = wasm_runtime_module_malloc(engine->instance,
+        engine->buffer_samples * sizeof(float), NULL);
+
+    if (engine->input_offset == 0 || engine->output_offset == 0) {
+        wamr_print("ERROR: Failed to pre-allocate WASM I/O buffers\n");
+        if (engine->input_offset) wasm_runtime_module_free(engine->instance, engine->input_offset);
+        if (engine->output_offset) wasm_runtime_module_free(engine->instance, engine->output_offset);
+        engine->input_offset = 0;
+        engine->output_offset = 0;
+        engine->buffer_samples = 0;
+        return false;
+    }
+    wamr_print("Pre-allocated WASM I/O buffers for %d samples\n", engine->buffer_samples);
+
     return true;
 }
 
@@ -142,36 +204,31 @@ void wamr_aot_engine_process(WamrAotEngine* engine, const float* input, float* o
         wamr_print("Initialized WAMR thread environment for audio processing thread\n");
     }
 
-    // Get WASM module's memory instance
-    uint32_t input_offset = wasm_runtime_module_malloc(engine->instance, num_samples * sizeof(float), NULL);
-    uint32_t output_offset = wasm_runtime_module_malloc(engine->instance, num_samples * sizeof(float), NULL);
-    
-    if (input_offset == 0 || output_offset == 0) {
-        wamr_print("ERROR: Failed to allocate WASM memory\n");
-        if (input_offset) wasm_runtime_module_free(engine->instance, input_offset);
-        if (output_offset) wasm_runtime_module_free(engine->instance, output_offset);
+    if (num_samples > engine->buffer_samples || engine->input_offset == 0) {
+        wamr_print("ERROR: num_samples %d exceeds pre-allocated buffer %d\n",
+                    num_samples, engine->buffer_samples);
         return;
     }
-    
-    // Get the memory pointer and copy input buffer
-    void* wasm_mem_ptr = wasm_runtime_addr_app_to_native(engine->instance, input_offset);
-    if (wasm_mem_ptr) {
-        memcpy(wasm_mem_ptr, input, num_samples * sizeof(float));
+
+    // Copy input into pre-allocated WASM buffer
+    void* wasm_input_ptr = wasm_runtime_addr_app_to_native(engine->instance, engine->input_offset);
+    if (wasm_input_ptr) {
+        memcpy(wasm_input_ptr, input, num_samples * sizeof(float));
     }
-    
+
     // Call the process function with (input_ptr, output_ptr, num_samples)
     uint32_t argv[3];
-    argv[0] = input_offset;
-    argv[1] = output_offset;
+    argv[0] = engine->input_offset;
+    argv[1] = engine->output_offset;
     argv[2] = num_samples;
-    
+
     if (wasm_runtime_call_wasm(engine->exec_env, engine->process_func, 3, argv)) {
-        // Copy output buffer from WASM memory
-        void* output_mem_ptr = wasm_runtime_addr_app_to_native(engine->instance, output_offset);
-        if (output_mem_ptr) {
-            memcpy(output, output_mem_ptr, num_samples * sizeof(float));
+        // Copy output from pre-allocated WASM buffer
+        void* wasm_output_ptr = wasm_runtime_addr_app_to_native(engine->instance, engine->output_offset);
+        if (wasm_output_ptr) {
+            memcpy(output, wasm_output_ptr, num_samples * sizeof(float));
         }
-        
+
         static int debug_count = 0;
         if (debug_count < 3) {
             wamr_print("WAMR process call succeeded\n");
@@ -185,8 +242,4 @@ void wamr_aot_engine_process(WamrAotEngine* engine, const float* input, float* o
             error_count++;
         }
     }
-    
-    // Free WASM memory
-    wasm_runtime_module_free(engine->instance, input_offset);
-    wasm_runtime_module_free(engine->instance, output_offset);
 }
