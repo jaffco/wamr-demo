@@ -1,6 +1,6 @@
 # WAMR AOT Demo for Daisy Seed
 
-This project demonstrates embedding WAMR (WebAssembly Micro Runtime) with AOT compilation into a Daisy Seed application.
+This project demonstrates embedding WAMR (WebAssembly Micro Runtime) on a Daisy Seed.
 
 ## Quick Start
 
@@ -54,29 +54,15 @@ cd ..
 make clean && make
 ```
 
-The AOT module will be regenerated and embedded automatically.
-
-## Performance Notes
-
-- AOT mode achieves 80-95% of native C performance
-- Single sample generation: typically < 1 microsecond
-- Suitable for real-time audio processing at 48kHz
-- Memory footprint: ~50KB total (runtime + instance)
-
 ## Troubleshooting
 
 **"wamrc not found"**
-- First module build should compile it automatically
-- Takes 5-10 minutes on first run
+- First module build should compile it automatically (this will take a while!)
 
 **Build errors**
 - Ensure libDaisy submodule is initialized: `./init.sh`
 - Check ARM toolchain is installed: `arm-none-eabi-gcc --version`
 
-## Next Steps
+## Benchmarking
 
-Try these modifications:
-1. Add more audio effects (delay, filter, distortion)
-2. Load multiple modules simultaneously
-3. Store modules in QSPI flash for dynamic loading
-4. Add parameter controls from Daisy hardware
+Checkout `FAUST`, `GEN`, `KLON`, and `NAM` branches to compare performance across different WASM module code.
